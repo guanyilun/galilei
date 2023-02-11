@@ -1856,4 +1856,4 @@ test = ["pytest", "black", "isort", "flake8", "flake8-docstrings", "pytest-cov"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.7.1,<4.0"
-content-hash = "d9d7547c434a050968c4852a7e03a1e94e5f59bbdefb0546003377bfdc70e731"
+content-hash = "cd8907c5eb8c4a0c59935a329f10d5709d723e83855251acf67f5535ca2ab89c"

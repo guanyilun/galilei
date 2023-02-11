@@ -66,6 +66,7 @@ doc = [
     "mkdocs-include-markdown-plugin",
     "mkdocs-material",
     "mkdocstrings",
+    "mkdocstrings-python",
     "mkdocs-material-extension",
     "mkdocs-autorefs",
     "mike"
