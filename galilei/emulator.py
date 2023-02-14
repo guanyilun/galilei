@@ -19,6 +19,8 @@ class Emulator:
         test_size=0.2,
         optimizer=None,
         criterion=None,
+        result_handler=None,
+        results_handler=None,
         precondition=None,
         **kwargs,
     ):
@@ -31,6 +33,8 @@ class Emulator:
             else partial(optim.SGD, lr=0.001, momentum=0.9)
         )
         self.criterion = criterion if criterion is not None else nn.MSELoss()
+        self.result_handler = result_handler
+        self.results_handler = results_handler
         self.precondition = precondition  # need to have forward and backward methods for transf and inverse transf
 
     def get_samples(self, samples):
@@ -46,15 +50,31 @@ class Emulator:
             features.shape[0]
         ):  # samples has shape (n_samples, n_parameters)
             res = func(**{k: v for k, v in zip(samples.keys(), features[i, :])})
-            # optionally apply a transformation
-            if self.precondition is not None:
-                res = self.precondition.forward(res)
-            res_list.append(res)
 
-        # we can train a model
+            # callback to result handler
+            if self.result_handler is not None:
+                assert callable(self.result_handler)
+                self.result_handler(res)
+
+            res_list.append(res)
+        labels = np.array(res_list)
+
+        # callback to (all) results handler
+        if self.results_handler is not None:
+            assert callable(self.results_handler)
+            self.results_handler(labels)
+
+        # optionally apply a transformation
+        if self.precondition is not None:
+            labels = self.precondition.forward(labels)
+
+        print("Shape of features: ", features.shape)
+        print("Shape of labels: ", labels.shape)
+
+        # now we can train a model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         features = torch.as_tensor(features, dtype=torch.float)
-        labels = torch.as_tensor(np.array(res_list), dtype=torch.float)
+        labels = torch.as_tensor(labels, dtype=torch.float)
         if len(features.shape) == 1:
             features = features.reshape(-1, 1)
         if len(labels.shape) == 1:
