@@ -30,12 +30,10 @@ class Emulator:
     def __init__(
         self,
         test_size=0.2,
-        results_handler=None,
-        precondition=None,
+        preconditioner=None,
     ):
         self.test_size = test_size
-        self.results_handler = results_handler
-        self.precondition = precondition  # need to have forward and backward methods for transf and inverse transf
+        self.preconditioner = preconditioner  # need to have forward and backward methods for transf and inverse transf
 
     def train(self, X_train, Y_train):
         raise NotImplementedError
@@ -56,14 +54,9 @@ class Emulator:
             res_list.append(res)
         Y = np.array(res_list)
 
-        # callback to results handler
-        if self.results_handler is not None:
-            assert callable(self.results_handler)
-            self.results_handler(Y)
-
         # optionally apply a transformation
-        if self.precondition is not None:
-            Y = self.precondition.forward(Y)
+        if self.preconditioner is not None:
+            Y = self.preconditioner.forward(Y)
 
         if len(X.shape) == 1:
             X = X.reshape(-1, 1)
@@ -82,11 +75,11 @@ class Emulator:
         return self.reverse_precondition(emulated_func)
 
     def reverse_precondition(self, func):
-        if self.precondition is not None:
+        if self.preconditioner is not None:
 
             def wrapped_func(*args, **kwargs):
                 res = func(*args, **kwargs)
-                return self.precondition.backward(res)
+                return self.preconditioner.backward(res)
 
             return wrapped_func
         return func
