@@ -180,13 +180,11 @@ class TorchEmulator(Emulator):
 
 
 class SklearnEmulator(Emulator):
-    def __init__(self, model=None, kernel_kwargs={}, **kwargs):
+    def __init__(self, model=None, kernel_kwargs={"n_restarts_optimizer": 5}, **kwargs):
         super(SklearnEmulator, self).__init__(**kwargs)
         if model is None:
             # use a gaussian process model with RKB kernel from sklearn if none is provided
-            model = GaussianProcessRegressor(
-                kernel=kernels.RBF(**kernel_kwargs), random_state=0
-            )
+            model = GaussianProcessRegressor(kernel=kernels.RBF(**kernel_kwargs))
         self.model = model
 
     def _train(self, X_train, Y_train):
