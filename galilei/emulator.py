@@ -3,6 +3,8 @@ from functools import partial
 
 import numpy as np
 import torch
+from sklearn.gaussian_process import GaussianProcessRegressor, kernels
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
 from torch.nn import functional as F
@@ -34,17 +36,9 @@ class Emulator:
     ):
         self.test_size = test_size
         self.preconditioner = preconditioner  # need to have forward and backward methods for transf and inverse transf
+        self.model = None
 
-    def train(self, X_train, Y_train):
-        raise NotImplementedError
-
-    def test(self, X_test, Y_test):
-        raise NotImplementedError
-
-    def build_func(self, param_keys):
-        raise NotImplementedError
-
-    def prepare_data(self, func, samples):
+    def _prepare_data(self, func, samples):
         X = np.vstack([np.array(v) for _, v in samples.items()]).T
 
         # run all combinations and gather results
@@ -70,22 +64,36 @@ class Emulator:
 
         return X_train, X_test, Y_train, Y_test
 
+    def _train(self, X_train, Y_train):
+        raise NotImplementedError
+
+    def _test(self, X_test, Y_test):
+        raise NotImplementedError
+
+    def _predict(self, x):
+        raise NotImplementedError
+
+    def _build_func(self, param_keys):
+        def emulated_func(**kwargs):
+            values = [kwargs.get(k, None) for k in param_keys]
+            if None in values:
+                raise ValueError("Missing argument")
+            res = self._predict(values)
+            if self.preconditioner is not None:
+                res = self.preconditioner.backward(res)
+            return res
+
+        # attach a reference to the model and emulator instance in the function
+        emulated_func.model = self.model
+        emulated_func.emulator = self
+        return emulated_func
+
     def emulate(self, func, samples):
-        X_train, X_test, Y_train, Y_test = self.prepare_data(func, samples)
-        self.train(X_train, Y_train)
-        self.test(X_test, Y_test)
-        emulated_func = self.build_func(samples.keys())
-        return self.reverse_precondition(emulated_func)
-
-    def reverse_precondition(self, func):
-        if self.preconditioner is not None:
-
-            def wrapped_func(*args, **kwargs):
-                res = func(*args, **kwargs)
-                return self.preconditioner.backward(res)
-
-            return wrapped_func
-        return func
+        X_train, X_test, Y_train, Y_test = self._prepare_data(func, samples)
+        self._train(X_train, Y_train)
+        self._test(X_test, Y_test)
+        emulated_func = self._build_func(samples.keys())
+        return emulated_func
 
 
 class TorchEmulator(Emulator):
@@ -111,7 +119,7 @@ class TorchEmulator(Emulator):
         )
         self.criterion = criterion if criterion is not None else nn.MSELoss()
 
-    def train(self, X_train, Y_train):
+    def _train(self, X_train, Y_train):
         # now we can train a model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -148,7 +156,7 @@ class TorchEmulator(Emulator):
 
         self.model = model
 
-    def test(self, X_test, Y_test):
+    def _test(self, X_test, Y_test):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         X_test = torch.as_tensor(X_test, dtype=torch.float32, device=device)
         Y_test = torch.as_tensor(Y_test, dtype=torch.float32, device=device)
@@ -164,30 +172,60 @@ class TorchEmulator(Emulator):
                 avg_test_loss = test_loss / (i + 1)
             print("Ave Test loss: {:.3f}".format(avg_test_loss))
 
-    def build_func(self, param_keys):
+    def _predict(self, x):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        def emulated_func(**kwargs):
-            values = [kwargs.get(k, None) for k in param_keys]
-            if None in values:
-                raise ValueError("Missing argument")
-            values = torch.as_tensor(values, dtype=torch.float, device=device)
-            res = self.model(values).detach().cpu().numpy()
-            return res
-
-        return emulated_func
+        x = torch.as_tensor(x, dtype=torch.float32, device=device)
+        res = self.model(x).detach().cpu().numpy()
+        return res
 
 
-# a lazy person's emulator interface
+class SklearnEmulator(Emulator):
+    def __init__(self, model=None, kernel_kwargs={}, **kwargs):
+        super(SklearnEmulator, self).__init__(**kwargs)
+        if model is None:
+            # use a gaussian process model with RKB kernel from sklearn if none is provided
+            model = GaussianProcessRegressor(
+                kernel=kernels.RBF(**kernel_kwargs), random_state=0
+            )
+        self.model = model
+
+    def _train(self, X_train, Y_train):
+        self.model.fit(X_train, Y_train)
+
+    def _test(self, X_test, Y_test):
+        if len(X_test) > 0:
+            test_loss = mean_squared_error(Y_test, self.model.predict(X_test))
+            print("Ave Test loss: {:.3f}".format(test_loss))
+
+    def _predict(self, x):
+        res = self.model.predict([x])[0]
+        return res
+
+
+# the main emulator interface
 class emulate:
     def __init__(
         self,
         samples=None,
-        emulator_class=TorchEmulator,
+        emulator_class=None,
+        backend="torch",
         **kwargs,
     ):
         self.samples = samples
-        self.em = emulator_class(**kwargs)
+
+        # select the backend
+        if backend == "torch":
+            self.emulator_class = TorchEmulator
+        elif backend == "sklearn":
+            self.emulator_class = SklearnEmulator
+        else:
+            raise ValueError(f"Unknown backend {backend}")
+
+        # if custom emulator class is provided, use it instead
+        if emulator_class is not None:
+            self.emulator_class = emulator_class
+
+        self.em = self.emulator_class(**kwargs)
 
     def __call__(self, func):
         return self.em.emulate(func, self.samples)
