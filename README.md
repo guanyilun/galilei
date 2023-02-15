@@ -21,16 +21,48 @@
 </a>
 
 
-the galilei project
+`galilei` is a software package that makes emulating a function easier. The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. It builds on the ideas of
+[cosmopower](https://github.com/alessiospuriomancini/cosmopower) and [axionEmu](https://github.com/keirkwame/axionEmu), with an aim to be as generic and flexible as possible on the emulating target. As such, `galilei` can take any generic parametrized function that returns an array without a need to know its implementation detail.
 
+## Installation
+```
+pip install galilei
+```
 
-* Free software: MIT
+## Basic usage
+Suppose that we have an expensive function that we want to emulate
+```python
+def test(a=1, b=1):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+If you want to emulate this function, you can simply add a decorator `@emulate` and supply the parameters that you want to evaluate this function at to build up the training data set.
+
+```python
+from galilei import emulate
+
+@emulate(samples={
+    'a': np.random.rand(1000),
+    'b': np.random.rand(1000)
+})
+def test(a=1, b=1):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+Here we are just making 1000 pairs of random numbers from 0 to 1 to train our function. When executing these lines, the emulator will start training, and once it is done, the original `test` function will be automatically replaced with the emulated version and should behave in the same way, except much faster!
+```
+Training emulator...
+100%|██████████| 500/500 [00:09<00:00, 50.50it/s, loss=0.023]
+Ave Test loss: 0.025
+```
 
 
 ## Features
 
-* TODO
+* TODO support saving trained model and load pretrained model
+* TODO add Gpy backend for gaussian process regression
 
 ## Credits
-
 This package was created with the [ppw](https://zillionare.github.io/python-project-wizard) tool. For more information, please visit the [project page](https://zillionare.github.io/python-project-wizard/).
+
+Free software: MIT
