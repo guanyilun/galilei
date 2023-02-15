@@ -55,7 +55,7 @@ Training emulator...
 100%|██████████| 500/500 [00:09<00:00, 50.50it/s, loss=0.023]
 Ave Test loss: 0.025
 ```
-
+![Comparison](https://github.com/guanyilun/galilei/raw/master/data/demo.png)
 
 ## Features
 
