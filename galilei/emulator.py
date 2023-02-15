@@ -44,7 +44,7 @@ class Emulator:
     def build_func(self, param_keys):
         raise NotImplementedError
 
-    def emulate(self, func, samples):
+    def prepare_data(self, func, samples):
         X = np.vstack([np.array(v) for _, v in samples.items()]).T
 
         # run all combinations and gather results
@@ -68,10 +68,13 @@ class Emulator:
             X, Y, test_size=self.test_size
         )
 
+        return X_train, X_test, Y_train, Y_test
+
+    def emulate(self, func, samples):
+        X_train, X_test, Y_train, Y_test = self.prepare_data(func, samples)
         self.train(X_train, Y_train)
         self.test(X_test, Y_test)
         emulated_func = self.build_func(samples.keys())
-
         return self.reverse_precondition(emulated_func)
 
     def reverse_precondition(self, func):
