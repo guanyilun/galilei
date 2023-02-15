@@ -5,117 +5,144 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
+from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from .network import Net
+
+class Net(nn.Module):
+    def __init__(self, idim, odim, hidden=[64, 64]):
+        super(Net, self).__init__()
+        self.layer0 = nn.Linear(idim, hidden[0])
+        for i in range(1, len(hidden)):
+            self.add_module("layer" + str(i), nn.Linear(hidden[i - 1], hidden[i - 1]))
+        self.add_module("layer" + str(len(hidden)), nn.Linear(hidden[-1], odim))
+
+    def forward(self, out):
+        for i in range(len(self._modules) - 1):
+            out = self._modules["layer" + str(i)](out)
+            out = F.relu(out)
+        out = self._modules["layer" + str(len(self._modules) - 1)](out)
+        return out
 
 
 class Emulator:
     def __init__(
         self,
-        NNClass=Net,
-        epoches=100,
         test_size=0.2,
-        optimizer=None,
-        criterion=None,
-        result_handler=None,
         results_handler=None,
         precondition=None,
-        **kwargs,
     ):
-        self.NNClass = partial(NNClass, **kwargs)
-        self.epoches = epoches
         self.test_size = test_size
-        self.optimizer = (
-            optimizer
-            if optimizer is not None
-            else partial(optim.SGD, lr=0.001, momentum=0.9)
-        )
-        self.criterion = criterion if criterion is not None else nn.MSELoss()
-        self.result_handler = result_handler
         self.results_handler = results_handler
         self.precondition = precondition  # need to have forward and backward methods for transf and inverse transf
 
-    def get_samples(self, samples):
-        # samples: dict[parameter_name] -> list of choices, assume all choices are float and have the same length
-        return np.vstack([np.array(v) for _, v in samples.items()]).T
+    def train(self, X_train, Y_train):
+        raise NotImplementedError
+
+    def test(self, X_test, Y_test):
+        raise NotImplementedError
+
+    def build_func(self, param_keys):
+        raise NotImplementedError
 
     def emulate(self, func, samples):
-        features = self.get_samples(samples)
+        X = np.vstack([np.array(v) for _, v in samples.items()]).T
 
         # run all combinations and gather results
         res_list = []
-        for i in range(
-            features.shape[0]
-        ):  # samples has shape (n_samples, n_parameters)
-            res = func(**{k: v for k, v in zip(samples.keys(), features[i, :])})
-
-            # callback to result handler
-            if self.result_handler is not None:
-                assert callable(self.result_handler)
-                self.result_handler(res)
-
+        for i in range(X.shape[0]):  # samples has shape (n_samples, n_parameters)
+            res = func(**{k: v for k, v in zip(samples.keys(), X[i, :])})
             res_list.append(res)
-        labels = np.array(res_list)
+        Y = np.array(res_list)
 
-        # callback to (all) results handler
+        # callback to results handler
         if self.results_handler is not None:
             assert callable(self.results_handler)
-            self.results_handler(labels)
+            self.results_handler(Y)
 
         # optionally apply a transformation
         if self.precondition is not None:
-            labels = self.precondition.forward(labels)
+            Y = self.precondition.forward(Y)
 
-        print("Shape of features: ", features.shape)
-        print("Shape of labels: ", labels.shape)
-
-        # now we can train a model
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        features = torch.as_tensor(features, dtype=torch.float)
-        labels = torch.as_tensor(labels, dtype=torch.float)
-        if len(features.shape) == 1:
-            features = features.reshape(-1, 1)
-        if len(labels.shape) == 1:
-            labels = labels.reshape(-1, 1)
+        if len(X.shape) == 1:
+            X = X.reshape(-1, 1)
+        if len(Y.shape) == 1:
+            Y = Y.reshape(-1, 1)
 
         # split into train and test
-        train_features, test_features, train_labels, test_labels = train_test_split(
-            features, labels, test_size=0.2
+        X_train, X_test, Y_train, Y_test = train_test_split(
+            X, Y, test_size=self.test_size
         )
+
+        self.train(X_train, Y_train)
+        self.test(X_test, Y_test)
+        emulated_func = self.build_func(samples.keys())
+
+        return self.reverse_precondition(emulated_func)
+
+    def reverse_precondition(self, func):
+        if self.precondition is not None:
+
+            def wrapped_func(*args, **kwargs):
+                res = func(*args, **kwargs)
+                return self.precondition.backward(res)
+
+            return wrapped_func
+        return func
+
+
+class TorchEmulator(Emulator):
+    def __init__(
+        self,
+        NNClass=Net,
+        epochs=500,
+        optimizer=None,
+        criterion=None,
+        lr=0.01,
+        weight_decay=0,
+        momentum=0.9,
+        NN_kwargs={},
+        **kwargs,
+    ):
+        super(TorchEmulator, self).__init__(**kwargs)
+        self.NNClass = partial(NNClass, **NN_kwargs)
+        self.epochs = epochs
+        self.optimizer = (
+            optimizer
+            if optimizer is not None
+            else partial(optim.SGD, lr=lr, momentum=momentum, weight_decay=weight_decay)
+        )
+        self.criterion = criterion if criterion is not None else nn.MSELoss()
+
+    def train(self, X_train, Y_train):
+        # now we can train a model
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # convert the data to PyTorch tensors and send to GPU if available
-        train_features = torch.as_tensor(
-            train_features, dtype=torch.float32, device=device
-        )
-        train_labels = torch.as_tensor(train_labels, dtype=torch.float32, device=device)
-        test_features = torch.as_tensor(
-            test_features, dtype=torch.float32, device=device
-        )
-        test_labels = torch.as_tensor(test_labels, dtype=torch.float32, device=device)
+        X_train = torch.as_tensor(X_train, dtype=torch.float32, device=device)
+        Y_train = torch.as_tensor(Y_train, dtype=torch.float32, device=device)
 
         # create TensorDatasets and DataLoaders
-        train_data = TensorDataset(train_features, train_labels)
+        train_data = TensorDataset(X_train, Y_train)
         train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
 
         # build model, optimizer and loss function
-        model = self.NNClass(features.shape[-1], labels.shape[-1]).to(device)
+        model = self.NNClass(X_train.shape[-1], Y_train.shape[-1]).to(device)
         optimizer = self.optimizer(model.parameters())
-        criterion = self.criterion
 
         # train the model
         print("Training emulator...")
-        pbar = tqdm(range(self.epoches))
+        pbar = tqdm(range(self.epochs))
         for epoch in pbar:
             running_loss = 0.0
-            for i, (inputs, labels) in enumerate(train_loader):
+            for i, (inputs, Y) in enumerate(train_loader):
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
                 outputs = model(inputs)
-                loss = self.criterion(outputs, labels)
+                loss = self.criterion(outputs, Y)
                 loss.backward()
                 optimizer.step()
 
@@ -123,63 +150,48 @@ class Emulator:
                 running_loss += loss.item()
             pbar.set_postfix({"loss": f"{running_loss/(i+1):.3f}"})
 
-        # Test the model
-        with torch.no_grad():
-            test_loss = 0.0
-            for i, data in enumerate(zip(test_features, test_labels)):
-                inputs, labels = data
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                test_loss += loss.item()
-            avg_test_loss = test_loss / (i + 1)
-        print("Ave Test loss: {:.3f}".format(avg_test_loss))
+        self.model = model
 
-        # return emulated function
+    def test(self, X_test, Y_test):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        X_test = torch.as_tensor(X_test, dtype=torch.float32, device=device)
+        Y_test = torch.as_tensor(Y_test, dtype=torch.float32, device=device)
+        # Test the model
+        if len(X_test) > 0:
+            with torch.no_grad():
+                test_loss = 0.0
+                for i, data in enumerate(zip(X_test, Y_test)):
+                    inputs, Y = data
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, Y)
+                    test_loss += loss.item()
+                avg_test_loss = test_loss / (i + 1)
+            print("Ave Test loss: {:.3f}".format(avg_test_loss))
+
+    def build_func(self, param_keys):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         def emulated_func(**kwargs):
-            values = [kwargs.get(k, None) for k in samples.keys()]
+            values = [kwargs.get(k, None) for k in param_keys]
             if None in values:
                 raise ValueError("Missing argument")
-            values = torch.as_tensor(values, dtype=torch.float)
-            res = model(values).detach().numpy()
-            if self.precondition is not None:
-                res = self.precondition.backward(res)
-            if len(res.shape) == 1 and len(res) == 1:
-                res = res[0]
+            values = torch.as_tensor(values, dtype=torch.float, device=device)
+            res = self.model(values).detach().cpu().numpy()
             return res
 
-        emulated_func.model = model if device == "cpu" else model.cpu()
         return emulated_func
 
 
-# a decorator interface
+# a lazy person's emulator interface
 class emulate:
     def __init__(
         self,
         samples=None,
-        NNClass=Net,
-        epoches=100,
-        lr=0.01,
-        momentum=0.9,
-        weight_decay=0,
-        nsamps=1000,
+        emulator_class=TorchEmulator,
         **kwargs,
     ):
-        optimizer = partial(
-            optim.SGD, lr=lr, momentum=momentum, weight_decay=weight_decay
-        )
-        self.em = Emulator(
-            NNClass=NNClass, epoches=epoches, optimizer=optimizer, **kwargs
-        )
         self.samples = samples
-        self.nsamps = nsamps  # only used when samples is None
+        self.em = emulator_class(**kwargs)
 
     def __call__(self, func):
-        if self.samples is None:
-            # get samples from function signature
-            import inspect
-
-            sig = inspect.signature(func)
-            self.samples = OrderedDict(
-                {k: np.random.randn(self.nsamps) for k in sig.parameters.keys()}
-            )
         return self.em.emulate(func, self.samples)
