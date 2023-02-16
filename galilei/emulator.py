@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from functools import partial
 
 import numpy as np
@@ -360,7 +359,7 @@ class SklearnEmulator(Emulator):
         self,
         model=None,
         kernel_kwargs={},
-        model_kwargs={"n_restarts_optimizer": 5},
+        model_kwargs={"n_restarts_optimizer": 10},
         **kwargs,
     ):
         """
@@ -437,6 +436,86 @@ class SklearnEmulator(Emulator):
         return res
 
 
+class GPyEmulator(Emulator):
+    def __init__(
+        self,
+        kernel_kwargs={},
+        model_kwargs={},
+        **kwargs,
+    ):
+        """
+        A class used to emulate data using a machine learning model based on the GPy library.
+
+        Parameters
+        ----------
+        kernel_kwargs : dict, optional
+            The keyword arguments to pass to the RBF kernel constructor if a Gaussian Process model is used. Default is an empty dictionary.
+        model_kwargs : dict, optional
+            The keyword arguments to pass to the machine learning model constructor if one is provided. Default is an empty dictionary.
+        **kwargs
+            Additional keyword arguments to pass to the base Emulator class constructor.
+
+        Attributes
+        ----------
+        model : GPy.models.GPRegression
+            The machine learning model used for emulation.
+        """
+        super(GPyEmulator, self).__init__(**kwargs)
+        self.kernel_kwargs = kernel_kwargs
+        self.model_kwargs = model_kwargs
+        self.model = None
+
+    def _train(self, X_train, Y_train):
+        """
+        Train the emulator
+
+        Parameters
+        ----------
+        X_train : np.ndarray
+            Training input
+        Y_train : np.ndarray
+            Training output
+        """
+        import GPy
+
+        kernel = GPy.kern.RBF(input_dim=X_train.shape[-1], **self.kernel_kwargs)
+        model = GPy.models.GPRegression(X_train, Y_train, kernel, **self.model_kwargs)
+        model.optimize()
+        self.model = model
+
+    def _test(self, X_test, Y_test):
+        """
+        Test the emulator on a test set
+
+        Parameters
+        ----------
+        X_test : array-like
+            The test set input data
+        Y_test : array-like
+            The test set output data
+        """
+        if len(X_test) > 0:
+            test_loss = np.mean((Y_test - self.model.predict(X_test)[0]) ** 2)
+            print("Ave Test loss: {:.3f}".format(test_loss))
+
+    def _predict(self, x):
+        """
+        Predict the output of the emulator for a given input
+
+        Parameters
+        ----------
+        x : array-like
+            The input data
+
+        Returns
+        -------
+        np.ndarray
+            The predicted output
+        """
+        res = self.model.predict(np.array([x]))
+        return res[0][0]
+
+
 # the main emulator interface
 class emulate:
     def __init__(
@@ -482,6 +561,14 @@ class emulate:
             self.emulator_class = TorchEmulator
         elif backend == "sklearn":
             self.emulator_class = SklearnEmulator
+        elif backend == "gpy":
+            try:
+                import GPy
+            except ImportError:
+                raise ImportError(
+                    "GPy is not installed. Please install it to use the GPy backend."
+                )
+            self.emulator_class = GPyEmulator
         else:
             raise ValueError(f"Unknown backend {backend}")
 
