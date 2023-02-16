@@ -24,6 +24,13 @@
 `galilei` is a software package that makes emulating a function easier. The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. It builds on the ideas of
 [cosmopower](https://github.com/alessiospuriomancini/cosmopower) and [axionEmu](https://github.com/keirkwame/axionEmu), with an aim to be as generic and flexible as possible on the emulating target. As such, `galilei` can take any generic parametrized function that returns an array without a need to know its implementation detail.
 
+## Features
+- Flexible: Able to emulate generic numerical functions that takes float parameters and produces a float array.
+- Easy to use: just add a decorator `@emulate` and use your emulated function as a drop-in replacement of your existing function
+- Allow arbitrary transformation of function output before training through the use of `Preconditioner`.
+- Support multiple backends: `torch`, `sklearn`, `GPy` (for Gaussian Process Regression)
+
+
 ## Installation
 ```
 pip install galilei
@@ -61,10 +68,11 @@ For more detailed usage examples, see this notebook:
 <a href="https://colab.research.google.com/drive/1_pvuAIqLUz4gV1vxytueb7AMR6Jmx-8n?usp=sharing">
 <img src="https://user-content.gitlab-static.net/dfbb2c197c959c47da3e225b71504edb540e21d6/68747470733a2f2f636f6c61622e72657365617263682e676f6f676c652e636f6d2f6173736574732f636f6c61622d62616467652e737667" alt="open in colab">
 </a>
-## Features
+## Roadmap
 
 * TODO support saving trained model and load pretrained model
-* TODO add Gpy backend for gaussian process regression
+* TODO add prebuild preconditioners
+
 
 ## Credits
 This package was created with the [ppw](https://zillionare.github.io/python-project-wizard) tool. For more information, please visit the [project page](https://zillionare.github.io/python-project-wizard/).
