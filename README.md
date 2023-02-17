@@ -64,6 +64,25 @@ Ave Test loss: 0.025
 ```
 ![Comparison](https://github.com/guanyilun/galilei/raw/master/data/demo.png)
 
+You can also easily save your trained model with the `save` option
+```python
+@emulate(samples={
+    'a': np.random.rand(100),
+    'b': np.random.rand(100)
+}, backend='sklearn', save="test.pkl")
+def test(a=1, b=1):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+and when you use it in production, simply load a pretrained model with
+```python
+@emulate(backend='sklearn', load="test.pkl")
+def test(a=1, b=1):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+and your function will be replaced with a fast emulated version.
+
 For more detailed usage examples, see this notebook:
 <a href="https://colab.research.google.com/drive/1_pvuAIqLUz4gV1vxytueb7AMR6Jmx-8n?usp=sharing">
 <img src="https://user-content.gitlab-static.net/dfbb2c197c959c47da3e225b71504edb540e21d6/68747470733a2f2f636f6c61622e72657365617263682e676f6f676c652e636f6d2f6173736574732f636f6c61622d62616467652e737667" alt="open in colab">
