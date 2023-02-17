@@ -1,5 +1,4 @@
 # galilei
-
 <a href="https://pypi.python.org/pypi/galilei">
     <img src="https://img.shields.io/pypi/v/galilei.svg"
         alt = "Release Status">
@@ -13,13 +12,10 @@
 <a href="https://guanyilun.github.io/galilei/">
     <img src="https://img.shields.io/website/https/guanyilun.github.io/galilei/index.html.svg?label=docs&down_message=unavailable&up_message=available" alt="Documentation Status">
 </a>
-<a href="https://codecov.io/gh/guanyilun/galilei" >
- <img src="https://codecov.io/gh/guanyilun/galilei/branch/master/graph/badge.svg?token=0C3DT4IWP5"/>
-</a>
 <a href="https://opensource.org/licenses/MPL-2.0">
 <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
 </a>
-
+<a href="https://zenodo.org/badge/latestdoi/594445054"><img src="https://zenodo.org/badge/594445054.svg" alt="DOI"></a>
 
 `galilei` is a software package that makes emulating a function easier. The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. It builds on the ideas of
 [cosmopower](https://github.com/alessiospuriomancini/cosmopower) and [axionEmu](https://github.com/keirkwame/axionEmu), with an aim to be as generic and flexible as possible on the emulating target. As such, `galilei` can take any generic parametrized function that returns an array without a need to know its implementation detail.
@@ -91,8 +87,21 @@ For more detailed usage examples, see this notebook:
 
 * TODO add prebuild preconditioners
 * TODO add documentations
+* TODO support downloading files from web
+* TODO auto infer backend
 
 ## Credits
 This package was created with the [ppw](https://zillionare.github.io/python-project-wizard) tool. For more information, please visit the [project page](https://zillionare.github.io/python-project-wizard/).
+
+If this package is helpful in your work, please consider citing:
+```bibtex
+@article{yguan_2023, 
+    title={galilei: a generic function emulator}, 
+    DOI={10.5281/zenodo.7651315}, 
+    publisher={Zenodo}, 
+    author={Yilun Guan}, 
+    year={2023}, 
+    month={Feb}}
+```
 
 Free software: MIT
