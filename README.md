@@ -89,9 +89,8 @@ For more detailed usage examples, see this notebook:
 </a>
 ## Roadmap
 
-* TODO support saving trained model and load pretrained model
 * TODO add prebuild preconditioners
-
+* TODO add documentations
 
 ## Credits
 This package was created with the [ppw](https://zillionare.github.io/python-project-wizard) tool. For more information, please visit the [project page](https://zillionare.github.io/python-project-wizard/).
