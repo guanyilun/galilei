@@ -65,7 +65,7 @@ class Emulator:
         self.odim = None
         self.param_keys = None  # TODO: retrieve from function signature instead
 
-    def _prepare_data(self, func, samples):
+    def _prepare_data(self, func, samples, precomputed=None):
         """
         Prepare data for training and testing
 
@@ -75,6 +75,9 @@ class Emulator:
             Function to be emulated
         samples : dict
             Dictionary of parameter names and values
+        precomputed: array-like
+            Precomputed outputs of the function. If provided, the function will not be
+            evaluated.
 
         Returns
         -------
@@ -90,11 +93,14 @@ class Emulator:
         X = np.vstack([np.array(v) for _, v in samples.items()]).T
 
         # run all combinations and gather results
-        res_list = []
-        for i in range(X.shape[0]):  # samples has shape (n_samples, n_parameters)
-            res = func(**{k: v for k, v in zip(samples.keys(), X[i, :])})
-            res_list.append(res)
-        Y = np.array(res_list)
+        if precomputed is None:
+            res_list = []
+            for i in range(X.shape[0]):  # samples has shape (n_samples, n_parameters)
+                res = func(**{k: v for k, v in zip(samples.keys(), X[i, :])})
+                res_list.append(res)
+            Y = np.array(res_list)
+        else:
+            Y = np.array(precomputed)
 
         # optionally apply a transformation
         if self.preconditioner is not None:
@@ -190,7 +196,7 @@ class Emulator:
         emulated_func.emulator = self
         return emulated_func
 
-    def emulate(self, func, samples, pretrained=None):
+    def emulate(self, func, samples, pretrained=None, precomputed=None):
         """
         Emulate a function
 
@@ -201,6 +207,12 @@ class Emulator:
         samples : dict
             Dictionary of parameter names and values, where the values are lists of
             parameter values to evaluate the function at to build the emulator
+        precomputed: array-like
+            Precomputed outputs of the function. If provided, the function will not be
+            evaluated at the parameter values in `samples`, and the outputs in
+            `precomputed_outputs` will be used instead. This is useful if the function
+            is expensive to evaluate, and the outputs have already been computed.
+
 
         Returns
         -------
@@ -211,7 +223,9 @@ class Emulator:
         if pretrained is not None:
             self.load(pretrained)
             return self._build_func()
-        X_train, X_test, Y_train, Y_test = self._prepare_data(func, samples)
+        X_train, X_test, Y_train, Y_test = self._prepare_data(
+            func, samples, precomputed=precomputed
+        )
         self._train(X_train, Y_train)
         self._test(X_test, Y_test)
         emulated_func = self._build_func()
@@ -681,6 +695,7 @@ class emulate:
         backend="torch",
         save=None,
         load=None,
+        precomputed=None,
         **kwargs,
     ):
         """
@@ -721,6 +736,7 @@ class emulate:
         """
 
         self.samples = samples
+        self.precomputed = precomputed
         self.save = save
         self.load = load
 
@@ -760,7 +776,9 @@ class emulate:
         callable
             The emulator function.
         """
-        emulated = self.em.emulate(func, self.samples, pretrained=self.load)
+        emulated = self.em.emulate(
+            func, self.samples, pretrained=self.load, precomputed=self.precomputed
+        )
         if self.save is not None:
             self.em.save(self.save)
         return emulated
