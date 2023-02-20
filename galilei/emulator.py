@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 
 class Net(nn.Module):
-    def __init__(self, idim, odim, hidden=[64, 64]):
+    def __init__(self, idim, odim, hidden=[64, 64], activation=F.relu):
         """
         Simple fully connected neural network with ReLU activation
 
@@ -26,6 +26,7 @@ class Net(nn.Module):
             List of hidden layer sizes
         """
         super(Net, self).__init__()
+        self.activation = activation
         self.layers = nn.ModuleList()
         self.layers.append(nn.Linear(idim, hidden[0]))
         for i in range(1, len(hidden)):
@@ -34,7 +35,7 @@ class Net(nn.Module):
 
     def forward(self, out):
         for layer in self.layers[:-1]:
-            out = F.relu(layer(out))
+            out = self.activation(layer(out))
         out = self.layers[-1](out)
         return out
 
@@ -64,6 +65,9 @@ class Emulator:
         self.idim = None
         self.odim = None
         self.param_keys = None  # TODO: retrieve from function signature instead
+
+        self.X_test = None
+        self.Y_test = None
 
     def _prepare_data(self, func, samples, precomputed=None):
         """
@@ -122,6 +126,10 @@ class Emulator:
         self.param_keys = list(
             samples.keys()
         )  # TODO: retrieve from function signature instead
+
+        # save a reference to test data for future use
+        self.X_test = X_test
+        self.Y_test = Y_test
 
         return X_train, X_test, Y_train, Y_test
 
@@ -311,6 +319,8 @@ class TorchEmulator(Emulator):
         weight_decay=0,
         momentum=0.9,
         NN_kwargs={},
+        scheduler=None,
+        batch_size=32,
         **kwargs,
     ):
         """
@@ -357,6 +367,8 @@ class TorchEmulator(Emulator):
             else partial(optim.SGD, lr=lr, momentum=momentum, weight_decay=weight_decay)
         )
         self.criterion = criterion if criterion is not None else nn.MSELoss()
+        self.scheduler = scheduler
+        self.batch_size = batch_size
 
     def _train(self, X_train, Y_train):
         """
@@ -383,6 +395,7 @@ class TorchEmulator(Emulator):
         # build model, optimizer and loss function
         model = self.NNClass(X_train.shape[-1], Y_train.shape[-1]).to(device)
         optimizer = self.optimizer(model.parameters())
+        scheduler = self.scheduler(optimizer) if self.scheduler is not None else None
 
         # train the model
         print("Training emulator...")
@@ -401,7 +414,9 @@ class TorchEmulator(Emulator):
 
                 # print statistics
                 running_loss += loss.item()
-            pbar.set_postfix({"loss": f"{running_loss/(i+1):.3f}"})
+            pbar.set_postfix({"loss": f"{running_loss/(i+1):.4f}"})
+            if scheduler is not None:
+                scheduler.step()
 
         self.model = model
 
