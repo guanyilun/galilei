@@ -321,6 +321,7 @@ class TorchEmulator(Emulator):
         NN_kwargs={},
         scheduler=None,
         batch_size=32,
+        device=None,
         **kwargs,
     ):
         """
@@ -369,6 +370,10 @@ class TorchEmulator(Emulator):
         self.criterion = criterion if criterion is not None else nn.MSELoss()
         self.scheduler = scheduler
         self.batch_size = batch_size
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
 
     def _train(self, X_train, Y_train):
         """
@@ -381,9 +386,7 @@ class TorchEmulator(Emulator):
         Y_train : np.ndarray
             Training output
         """
-        # now we can train a model
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        device = self.device
         # convert the data to PyTorch tensors and send to GPU if available
         X_train = torch.as_tensor(X_train, dtype=torch.float32, device=device)
         Y_train = torch.as_tensor(Y_train, dtype=torch.float32, device=device)
@@ -414,7 +417,7 @@ class TorchEmulator(Emulator):
 
                 # print statistics
                 running_loss += loss.item()
-            pbar.set_postfix({"loss": f"{running_loss/(i+1):.4f}"})
+            pbar.set_postfix({"loss": f"{running_loss/(i+1):.5f}"})
             if scheduler is not None:
                 scheduler.step()
 
@@ -431,7 +434,7 @@ class TorchEmulator(Emulator):
         Y_test : array-like
             The test set output data
         """
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = self.device
         X_test = torch.as_tensor(X_test, dtype=torch.float32, device=device)
         Y_test = torch.as_tensor(Y_test, dtype=torch.float32, device=device)
         # Test the model
@@ -460,8 +463,7 @@ class TorchEmulator(Emulator):
         np.ndarray
             The predicted output
         """
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        x = torch.as_tensor(x, dtype=torch.float32, device=device)
+        x = torch.as_tensor(x, dtype=torch.float32, device=self.device)
         res = self.model(x).detach().cpu().numpy()
         return res
 
@@ -486,10 +488,9 @@ class TorchEmulator(Emulator):
         store: dict
             The dictionary that will be stored to disk
         """
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.NNClass(store["in"], store["out"])
         self.model.load_state_dict(store["model"])
-        self.model.to(device)
+        self.model.to(self.device)
 
 
 class SklearnEmulator(Emulator):
@@ -657,7 +658,7 @@ class GPyEmulator(Emulator):
         """
         if len(X_test) > 0:
             test_loss = np.mean((Y_test - self.model.predict(X_test)[0]) ** 2)
-            print("Ave Test loss: {:.3f}".format(test_loss))
+            print("Ave Test loss: {:.5f}".format(test_loss))
 
     def _predict(self, x):
         """
