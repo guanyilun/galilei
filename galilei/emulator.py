@@ -1,5 +1,6 @@
+import pickle
+
 import numpy as np
-import torch
 from sklearn.model_selection import train_test_split
 
 
@@ -245,7 +246,9 @@ class Emulator:
                 raise ValueError("Cannot save a preconditioner without a _save method")
             store["preconditioner"] = {}
             self.preconditioner._save(store["preconditioner"])
-        torch.save(store, filename)  # shorter to write than pickle
+
+        with open(filename, "wb") as f:
+            pickle.dump(store, f)
 
     def load(self, filename):
         """
@@ -256,7 +259,8 @@ class Emulator:
         filename : str
             Filename to load the emulator from
         """
-        store = torch.load(filename)
+        with open(filename, "rb") as f:
+            store = pickle.load(f)
 
         self.idim = store["in"]
         self.odim = store["out"]
