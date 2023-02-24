@@ -155,10 +155,17 @@ class Emulator:
             reference to the emulator instance in the attribute `emulator`.
         """
 
-        def emulated_func(**kwargs):
-            values = [kwargs.get(k, None) for k in self.param_keys]
-            if None in values:
-                raise ValueError("Missing argument")
+        def emulated_func(*args, **kwargs):
+            # check if the function has been called with the correct number of arguments
+            if len(args) > 0:
+                if len(args) != len(self.param_keys):
+                    raise ValueError("Incorrect number of arguments")
+                values = np.array(args)
+            else:
+                values = [kwargs.get(k, None) for k in self.param_keys]
+                if None in values:
+                    raise ValueError("Missing argument")
+
             res = self._predict(values)
             if self.preconditioner is not None:
                 res = self.preconditioner.backward(res)
@@ -350,6 +357,14 @@ class emulate:
                     "GPy is not installed. Please install it to use the GPy backend."
                 )
             self.emulator_class = GPyEmulator
+        elif backend == "jax":
+            try:
+                from .backends.jax import JaxEmulator
+            except ImportError:
+                raise ImportError(
+                    "Jax is not installed. Please install jax, optax, and flax to use the Jax backend."
+                )
+            self.emulator_class = JaxEmulator
         else:
             raise ValueError(f"Unknown backend {backend}")
 
