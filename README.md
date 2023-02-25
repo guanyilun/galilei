@@ -17,14 +17,17 @@
 </a>
 <a href="https://zenodo.org/badge/latestdoi/594445054"><img src="https://zenodo.org/badge/594445054.svg" alt="DOI"></a>
 
-`galilei` is a software package that makes emulating a function easier. The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. It builds on the ideas of
-[cosmopower](https://github.com/alessiospuriomancini/cosmopower) and [axionEmu](https://github.com/keirkwame/axionEmu), with an aim to be as generic and flexible as possible on the emulating target. As such, `galilei` can take any generic parametrized function that returns an array without a need to know its implementation detail.
+`galilei` is a python package that makes emulating a numerical functions easier and more composable. It supports multiple backends such as pytorch-based neural networks, GPy-based gaussian process regression, etc. As of now, it defaults to a jax+flax+optax backend which supports automatic differenciation of the emulated function and easy composibility with the rest of the jax-based eco-system.
+
+The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. An emulated function, on the other hand, can runs blazingly fast on a normal GPU achieveing over many orders of magnitude speed up. This idea of emulating function is not new. In the field of cosmology we have powerful tools such as
+[cosmopower](https://github.com/alessiospuriomancini/cosmopower) and its derived works such as [axionEmu](https://github.com/keirkwame/axionEmu), whose idea inspired this work. My aim in this work differs from the previous approach, as I intend to make a more generic and easily-composible functional emulator which can take any generic parametrized numerical function as an input and and return a function with the exact same signature that can be used as a drop-in replacement for the old function in existing code base without any modifications.
 
 ## Features
-- Flexible: Able to emulate generic numerical functions that takes float parameters and produces a float array.
-- Easy to use: just add a decorator `@emulate` and use your emulated function as a drop-in replacement of your existing function
+- Support multiple backends: `torch`, `sklearn`, `gpy` (for gaussian process regression), `jax`.
+- Flexible: Able to emulate generic numerical functions.
+- Automatic differenciable (supported by selected backends): emulated function is automatically differenciable and easily composible with jax-based tools.
+- Easy to use: just add a decorator `@emulate` and use your emulated function as a drop-in replacement of your existing function in code-base without additional modification.
 - Allow arbitrary transformation of function output before training through the use of `Preconditioner`.
-- Support multiple backends: `torch`, `sklearn`, `GPy` (for Gaussian Process Regression)
 
 
 ## Installation
@@ -86,21 +89,21 @@ For more detailed usage examples, see this notebook:
 ## Roadmap
 
 * TODO add prebuild preconditioners
-* TODO add documentations
 * TODO support downloading files from web
 * TODO auto infer backend
+* TODO chains of preconditioners
 
 ## Credits
 This package was created with the [ppw](https://zillionare.github.io/python-project-wizard) tool. For more information, please visit the [project page](https://zillionare.github.io/python-project-wizard/).
 
 If this package is helpful in your work, please consider citing:
 ```bibtex
-@article{yguan_2023, 
-    title={galilei: a generic function emulator}, 
-    DOI={10.5281/zenodo.7651315}, 
-    publisher={Zenodo}, 
-    author={Yilun Guan}, 
-    year={2023}, 
+@article{yguan_2023,
+    title={galilei: a generic function emulator},
+    DOI={10.5281/zenodo.7651315},
+    publisher={Zenodo},
+    author={Yilun Guan},
+    year={2023},
     month={Feb}}
 ```
 
