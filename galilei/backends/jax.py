@@ -95,19 +95,24 @@ class JaxEmulator(Emulator):
         X_test = jnp.array(X_test)
         Y_test = jnp.array(Y_test)
         Y_pred = self.model.apply(self.params, X_test)
-        return jnp.mean(optax.l2_loss(Y_pred, Y_test))
+        loss = jnp.mean(optax.l2_loss(Y_pred, Y_test))
+        print(f"Test loss: {loss:.5f}")
+        return loss
 
     def _predict(self, x):
         return self.model.apply(self.params, x)
 
+    def _save(self, store):
+        store["model"] = self.model
+        store["params"] = self.params
+
+    def _load(self, store):
+        self.model = store["model"]
+        self.params = store["params"]
+
     def _build_func(self):
         """
         Build a function that can be used to emulate the original function
-
-        Parameters
-        ----------
-        param_keys : list of str
-            List of parameter names
 
         Returns
         -------
