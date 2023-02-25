@@ -1,4 +1,3 @@
-from functools import partial
 from typing import List
 
 import jax
@@ -11,6 +10,17 @@ from ..emulator import Emulator
 
 
 class Net(nn.Module):
+    """
+    A class representing a simple fully-connected neural network.
+
+    Parameters
+    ----------
+    odim: int
+        Dimensionality of the output.
+    hidden: list of int
+        List of hidden layer sizes.
+    """
+
     odim: int
     hidden: List[int]
 
@@ -35,6 +45,29 @@ class JaxEmulator(Emulator):
         seed=42,
         **kwargs,
     ):
+        """
+        A class for emulating models using JAX.
+
+        Parameters
+        ----------
+        NNClass: class, optional (default=Net)
+            A class that implements the neural network architecture.
+        epochs: int, optional (default=500)
+            Number of training epochs.
+        optimizer: str or callable, optional (default=None)
+            Name of the optimizer or a custom optimizer function.
+        lr: float, optional (default=0.01)
+            Learning rate for the optimizer.
+        NN_kwargs: dict, optional (default={})
+            Additional keyword arguments to pass to the neural network constructor.
+        batch_size: int, optional (default=128)
+            Batch size for training.
+        seed: int, optional (default=42)
+            Seed for the random number generator.
+        **kwargs: dict
+            Additional keyword arguments to pass to the `Emulator` constructor.
+
+        """
         super(JaxEmulator, self).__init__(**kwargs)
         self.NNClass = NNClass
         self.epochs = epochs
@@ -46,6 +79,16 @@ class JaxEmulator(Emulator):
         self.NN_kwargs = NN_kwargs
 
     def _train(self, X_train, Y_train):
+        """
+        Train the emulator
+
+        Parameters
+        ----------
+        X_train : np.ndarray
+            Training input
+        Y_train : np.ndarray
+            Training output
+        """
         X_train = jnp.array(X_train)
         Y_train = jnp.array(Y_train)
 
@@ -92,6 +135,16 @@ class JaxEmulator(Emulator):
         self.params = params
 
     def _test(self, X_test, Y_test):
+        """
+        Test the emulator on a test set
+
+        Parameters
+        ----------
+        X_test : array-like
+            The test set input data
+        Y_test : array-like
+            The test set output data
+        """
         X_test = jnp.array(X_test)
         Y_test = jnp.array(Y_test)
         Y_pred = self.model.apply(self.params, X_test)
@@ -100,13 +153,42 @@ class JaxEmulator(Emulator):
         return loss
 
     def _predict(self, x):
+        """
+        Predict the output of the emulator for a given input
+
+        Parameters
+        ----------
+        x : array-like
+            The input data
+
+        Returns
+        -------
+        The predicted output
+        """
         return self.model.apply(self.params, x)
 
     def _save(self, store):
+        """
+        Save the emulator model to a file
+
+        Parameters
+        ----------
+        store: dict
+            The dictionary that will be stored to disk
+
+        """
         store["model"] = self.model
         store["params"] = self.params
 
     def _load(self, store):
+        """
+        Load the emulator model from a file
+
+        Parameters
+        ----------
+        store: dict
+            The dictionary that will be stored to disk
+        """
         self.model = store["model"]
         self.params = store["params"]
 
