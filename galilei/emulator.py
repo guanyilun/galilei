@@ -288,7 +288,7 @@ class emulate:
         self,
         samples=None,
         emulator_class=None,
-        backend="torch",
+        backend="jax",
         save=None,
         load=None,
         precomputed=None,
@@ -304,7 +304,7 @@ class emulate:
         emulator_class : type, optional
             The class of the emulator to use. If None, the default emulator for the specified backend will be used.
         backend : str, optional
-            The backend library to use for the emulator. Currently supported options are "torch" and "sklearn". Default is "torch".
+            The backend library to use for the emulator. Currently supported options are "torch", "sklearn", "gpy", "jax". Default is "jax".
         save : str, optional
             The path to the file to save the emulator to. If None, the emulator will not be saved. Default is None.
         load : str, optional
