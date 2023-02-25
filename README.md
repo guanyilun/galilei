@@ -38,7 +38,8 @@ pip install galilei
 ## Basic usage
 Suppose that we have an expensive function that we want to emulate
 ```python
-def test(a=1, b=1):
+def myfun(a, b):
+    # assume this is a slow function
     x = np.linspace(0, 10, 100)
     return np.sin(a*x) + np.sin(b*x)
 ```
@@ -51,11 +52,11 @@ from galilei import emulate
     'a': np.random.rand(1000),
     'b': np.random.rand(1000)
 })
-def test(a=1, b=1):
+def myfun(a, b):
     x = np.linspace(0, 10, 100)
     return np.sin(a*x) + np.sin(b*x)
 ```
-Here we are just making 1000 pairs of random numbers from 0 to 1 to train our function. When executing these lines, the emulator will start training, and once it is done, the original `test` function will be automatically replaced with the emulated version and should behave in the same way, except much faster!
+Here we are just making 1000 pairs of random numbers from 0 to 1 to train our function. When executing these lines, the emulator will start training, and once it is done, the original `myfun` function will be automatically replaced with the emulated version and should behave in the same way, except much faster!
 ```
 Training emulator...
 100%|██████████| 500/500 [00:09<00:00, 50.50it/s, loss=0.023]
@@ -63,25 +64,51 @@ Ave Test loss: 0.025
 ```
 ![Comparison](https://github.com/guanyilun/galilei/raw/master/data/demo.png)
 
+With the default `jax` backend, the emulated function is automatically jax compatible, which means one can easily compose them with `jax` machinary, such as in example below where I have compiled the emulated function with `jit` and then vectorized it over its first argument with `vmap`.
+```python
+from jax import jit, vmap
+
+vmap(jit(myfun), in_axes=(0, None))(np.linspace(0, 1, 10), 0.5)
+```
+Output:
+```
+Array([[-2.39813775e-02,  2.16133818e-02,  8.05920288e-02,
+         1.66035295e-01,  2.01425016e-01,  2.42054626e-01,
+         2.74079561e-01,  3.50277930e-01,  4.12616253e-01,
+         4.33193207e-01,  4.82740909e-01,  5.66871405e-01,
+         5.73131263e-01,  6.51429832e-01,  6.55564785e-01,
+         ...
+```
+The emulated function will also be automatically differenciable regardless of the original implementation details. For example, we could easily evaluate its jacobian (without finite differencing) with
+```python
+from jax import jacfwd
+
+jacfwd(myfun, argnums=(0,1))(0.2, 0.8)
+```
+Output:
+```
+(Array([ 0.05104188,  0.18436229,  0.08595917,  0.06582363,  0.17270228, ...],      dtype=float32),
+ Array([-3.3511031e-01,  1.2647966e-01,  4.3209594e-02,  2.4325712e-01, ...],      dtype=float32))
+```
 You can also easily save your trained model with the `save` option
 ```python
 @emulate(samples={
     'a': np.random.rand(100),
     'b': np.random.rand(100)
 }, backend='sklearn', save="test.pkl")
-def test(a=1, b=1):
+def myfun(a, b):
     x = np.linspace(0, 10, 100)
     return np.sin(a*x) + np.sin(b*x)
 ```
 and when you use it in production, simply load a pretrained model with
 ```python
 @emulate(backend='sklearn', load="test.pkl")
-def test(a=1, b=1):
+def myfun(a, b):
     x = np.linspace(0, 10, 100)
     return np.sin(a*x) + np.sin(b*x)
 ```
 and your function will be replaced with a fast emulated version.
-
+![Comparison2](https://github.com/guanyilun/galilei/raw/master/data/demo2.png)
 For more detailed usage examples, see this notebook:
 <a href="https://colab.research.google.com/drive/1_pvuAIqLUz4gV1vxytueb7AMR6Jmx-8n?usp=sharing">
 <img src="https://user-content.gitlab-static.net/dfbb2c197c959c47da3e225b71504edb540e21d6/68747470733a2f2f636f6c61622e72657365617263682e676f6f676c652e636f6d2f6173736574732f636f6c61622d62616467652e737667" alt="open in colab">

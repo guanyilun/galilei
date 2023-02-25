@@ -104,8 +104,12 @@ class JaxEmulator(Emulator):
         # minibatch setup
         n_samples = X_train.shape[0]
         n_batches = n_samples // self.batch_size
-        X_train = jnp.split(X_train[: n_batches * self.batch_size], n_batches)
-        Y_train = jnp.split(Y_train[: n_batches * self.batch_size], n_batches)
+        if n_batches > 0:
+            X_train = jnp.split(X_train[: n_batches * self.batch_size], n_batches)
+            Y_train = jnp.split(Y_train[: n_batches * self.batch_size], n_batches)
+        else:
+            X_train = [X_train]
+            Y_train = [Y_train]
 
         # loss function and gradient for optimization
         @jax.jit
