@@ -1,4 +1,5 @@
 from functools import partial
+from typing import List
 
 import jax
 import jax.numpy as jnp
@@ -10,9 +11,8 @@ from ..emulator import Emulator
 
 
 class Net(nn.Module):
-    idim: int
     odim: int
-    hidden = [128, 128]
+    hidden: List[int]
 
     @nn.compact
     def __call__(self, x):
@@ -36,20 +36,23 @@ class JaxEmulator(Emulator):
         **kwargs,
     ):
         super(JaxEmulator, self).__init__(**kwargs)
-        self.NNClass = partial(NNClass, **NN_kwargs)
+        self.NNClass = NNClass
         self.epochs = epochs
         self.optimizer = (
             optimizer if optimizer is not None else optax.adam(learning_rate=lr)
         )
         self.batch_size = batch_size
         self.seed = seed
+        self.NN_kwargs = NN_kwargs
 
     def _train(self, X_train, Y_train):
         X_train = jnp.array(X_train)
         Y_train = jnp.array(Y_train)
 
-        model = self.NNClass(idim=X_train.shape[1], odim=Y_train.shape[1])
-        model = Net(idim=X_train.shape[1], odim=Y_train.shape[1])
+        # update default NN kwargs if necessary
+        NN_kwargs = {"odim": Y_train.shape[1], "hidden": [128, 128]}
+        NN_kwargs.update(self.NN_kwargs)
+        model = self.NNClass(**NN_kwargs)
         params = model.init(
             jax.random.PRNGKey(self.seed), jnp.ones((1, X_train.shape[1]))
         )
@@ -62,12 +65,13 @@ class JaxEmulator(Emulator):
         Y_train = jnp.split(Y_train[: n_batches * self.batch_size], n_batches)
 
         # loss function and gradient for optimization
+        @jax.jit
         def compute_loss(params, X, Y):
             loss = optax.l2_loss(model.apply(params, X), Y)
             loss = jnp.mean(loss)
             return loss
 
-        loss_grad = jax.grad(compute_loss)
+        loss_grad = jax.jit(jax.grad(compute_loss))
 
         @jax.jit
         def train_step(params, opt_state, X_train, Y_train):
@@ -77,6 +81,7 @@ class JaxEmulator(Emulator):
                 params = optax.apply_updates(params, updates)
             return params, opt_state
 
+        # training loop
         pbar = tqdm(range(self.epochs))
         for epoch in pbar:
             params, opt_state = train_step(params, opt_state, X_train, Y_train)
