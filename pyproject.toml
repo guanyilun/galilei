@@ -59,7 +59,8 @@ test = [
     "isort",
     "flake8",
     "flake8-docstrings",
-    "pytest-cov"
+    "pytest-cov",
+    "numpy",
     ]
 
 dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml"]
