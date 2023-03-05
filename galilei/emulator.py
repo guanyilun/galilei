@@ -33,7 +33,7 @@ class Emulator:
         self.X_test = None
         self.Y_test = None
 
-    def _prepare_data(self, func, samples, precomputed=None):
+    def _prepare_data(self, func, samples, precomputed=None, collection=None):
         """
         Prepare data for training and testing
 
@@ -46,6 +46,11 @@ class Emulator:
         precomputed: array-like
             Precomputed outputs of the function. If provided, the function will not be
             evaluated.
+        collection: str
+            Path to a pickle file containing precomputed collection of data. If
+            provided, the function will not be evaluated. It takes precedence over
+            precomputed which contains only the function outputs. The collection
+            is expected to be the saved product of the `collect` function.
 
         Returns
         -------
@@ -58,17 +63,28 @@ class Emulator:
         Y_test : np.ndarray
             Test output
         """
-        X = np.vstack([np.array(v) for _, v in samples.items()]).T
-
-        # run all combinations and gather results
-        if precomputed is None:
-            res_list = []
-            for i in range(X.shape[0]):  # samples has shape (n_samples, n_parameters)
-                res = func(**{k: v for k, v in zip(samples.keys(), X[i, :])})
-                res_list.append(res)
-            Y = np.array(res_list)
+        # load everything from collection if it's given
+        if collection is not None:
+            with open(collection, "rb") as f:
+                collection_ = pickle.load(f)
+            # use the loaded values instead of computing
+            X = collection_["X"]
+            Y = collection_["Y"]
+            samples = collection_["samples"]
         else:
-            Y = np.array(precomputed)
+            X = np.vstack([np.array(v) for _, v in samples.items()]).T
+
+            # run all combinations and gather results
+            if precomputed is None:
+                res_list = []
+                for i in range(
+                    X.shape[0]
+                ):  # samples has shape (n_samples, n_parameters)
+                    res = func(**{k: v for k, v in zip(samples.keys(), X[i, :])})
+                    res_list.append(res)
+                Y = np.array(res_list)
+            else:
+                Y = np.array(precomputed)
 
         # optionally apply a transformation
         if self.preconditioner is not None:
@@ -175,7 +191,9 @@ class Emulator:
         emulated_func.emulator = self
         return emulated_func
 
-    def emulate(self, func, samples, pretrained=None, precomputed=None):
+    def emulate(
+        self, func, samples, pretrained=None, precomputed=None, collection=None
+    ):
         """
         Emulate a function
 
@@ -188,10 +206,7 @@ class Emulator:
             parameter values to evaluate the function at to build the emulator
         precomputed: array-like
             Precomputed outputs of the function. If provided, the function will not be
-            evaluated at the parameter values in `samples`, and the outputs in
-            `precomputed_outputs` will be used instead. This is useful if the function
-            is expensive to evaluate, and the outputs have already been computed.
-
+            evaluated at the parameter values in `samples`
 
         Returns
         -------
@@ -203,7 +218,7 @@ class Emulator:
             self.load(pretrained)
             return self._build_func()
         X_train, X_test, Y_train, Y_test = self._prepare_data(
-            func, samples, precomputed=precomputed
+            func, samples, precomputed=precomputed, collection=collection
         )
         self._train(X_train, Y_train)
         self._test(X_test, Y_test)
@@ -292,6 +307,7 @@ class emulate:
         save=None,
         load=None,
         precomputed=None,
+        collection=None,
         **kwargs,
     ):
         """
@@ -309,6 +325,13 @@ class emulate:
             The path to the file to save the emulator to. If None, the emulator will not be saved. Default is None.
         load : str, optional
             The path to the file to load the emulator from. If None, the emulator will not be loaded. Default is None.
+        precomputed : np.ndarray, optional
+            precomputed outputs of the function. If provided, the function will not be evaluated at the parameter values
+            in `samples`.
+        collection : str, optional
+            A dictionary of precomputed collection of the function. If provided, the function will not be evaluated
+            at the parameter values in `samples`, and `X`, `Y`, `samples` stored in `collection` dictionary will be used
+            instead. This works with collection saved by the `collect` decorator.
         **kwargs
             Additional keyword arguments to pass to the emulator constructor.
 
@@ -335,6 +358,7 @@ class emulate:
         self.precomputed = precomputed
         self.save = save
         self.load = load
+        self.collection = collection
 
         # select the backend
         if backend == "torch":
@@ -389,7 +413,11 @@ class emulate:
             The emulator function.
         """
         emulated = self.em.emulate(
-            func, self.samples, pretrained=self.load, precomputed=self.precomputed
+            func,
+            self.samples,
+            pretrained=self.load,
+            precomputed=self.precomputed,
+            collection=self.collection,
         )
         if self.save is not None:
             self.em.save(self.save)
