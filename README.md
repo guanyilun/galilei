@@ -19,7 +19,7 @@
 
 `galilei` is a python package that makes emulating a numerical functions easier and more composable. It supports multiple backends such as pytorch-based neural networks, GPy-based gaussian process regression, etc. As of now, it defaults to a jax+flax+optax backend which supports automatic differenciation of the emulated function and easy composibility with the rest of the jax-based eco-system.
 
-The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. Machine learning techniques such as neural networks offer a solution to this problem which is generic enough to emulate any arbitrarily shaped function. In contrast to the original function, a neural-network based emulator runs blazingly fast and even more so with GPU, often achieveing over many orders of magnitude speed-up. 
+The motivation of emulating a function is that sometimes computing a function could be a time consuming task, so one may need to find fast approximations of a function that's better than basic interpolation techniques. Machine learning techniques such as neural networks offer a solution to this problem which is generic enough to emulate any arbitrarily shaped function. In contrast to the original function, a neural-network based emulator runs blazingly fast and even more so with GPU, often achieveing over many orders of magnitude speed-up.
 
 This idea of emulating function is not new. In the field of cosmology we have powerful tools such as
 [cosmopower](https://github.com/alessiospuriomancini/cosmopower) and its derived works such as [axionEmu](https://github.com/keirkwame/axionEmu), whose idea inspired this work. My aim in this work differs from the previous approach, as I intend to make a both generic and easily-composible function emulator that can take any arbitrary parametrized numerical function as an input, and return a function with the exact same signature as a drop-in replacement in existing code base, with no additional code changes needed. In addition, I also focus on making the emulated function automatically differenciable regardless of its original implementation.
@@ -111,10 +111,51 @@ def myfun(a, b):
 ```
 and your function will be replaced with a fast emulated version.
 ![Comparison2](https://github.com/guanyilun/galilei/raw/master/data/demo2.png)
-For more detailed usage examples, see this notebook:
+
+It's also possible to sample training points based on latin hypercube using the `build_samples` function. For example, here I build a 100 sample latin hypercube for a given range of `a` and `b`
+```python
+from s
+@emulate(
+    samples=build_samples({"a": [0, 2], "b": [0, 2]}, 100),
+    backend='sklearn'
+)
+def myfun(a, b):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+Sometimes one might want to collect training data only instead of training the emulator. This could
+be done by
+```python
+from galilei.experimental import collect
+
+@collect(
+    samples=build_samples({"a": [0, 2], "b": [0, 2]}, 100),
+    save="collection.pkl",
+    mpi=True
+)
+def myfun(a, b):
+    x = np.linspace(0, 10, 100)
+    return np.sin(a*x) + np.sin(b*x)
+```
+which will save a precomputed collection to `collection.pkl` for future loading. Note that the option to use `mpi` depends on the user having a working `mpi4py` which needs to be installed by the user.
+The collection could be loaded for training emulator using
+```python
+@emulate(
+    collection="collection.pkl",
+    backend='sklearn'
+)
+def myfunc(a, b):
+    raise Exception()
+
+myfunc(1, 1)
+```
+since the function will not be evaluated in this case, we note that the implementation of `myfunc` makes no difference (otherwise it would have given an error).
+
+For more usage examples, see this notebook:
 <a href="https://colab.research.google.com/drive/1_pvuAIqLUz4gV1vxytueb7AMR6Jmx-8n?usp=sharing">
 <img src="https://user-content.gitlab-static.net/dfbb2c197c959c47da3e225b71504edb540e21d6/68747470733a2f2f636f6c61622e72657365617263682e676f6f676c652e636f6d2f6173736574732f636f6c61622d62616467652e737667" alt="open in colab">
 </a>
+
 ## Roadmap
 
 * TODO add prebuild preconditioners
