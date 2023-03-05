@@ -114,7 +114,7 @@ and your function will be replaced with a fast emulated version.
 
 It's also possible to sample training points based on latin hypercube using the `build_samples` function. For example, here I build a 100 sample latin hypercube for a given range of `a` and `b`
 ```python
-from s
+from galilei.sampling import build_samples
 @emulate(
     samples=build_samples({"a": [0, 2], "b": [0, 2]}, 100),
     backend='sklearn'
