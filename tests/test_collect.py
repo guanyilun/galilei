@@ -14,7 +14,7 @@ def test_collect():
         x = np.linspace(0, 10, 100)
         return np.sin(a * x) + np.sin(b * x)
 
-    @emulate(collection="_test.pkl")
+    @emulate(collection="_test.pkl", backend="sklearn")
     def test_em(a, b):
         pass
 
