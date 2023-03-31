@@ -96,9 +96,13 @@ class Emulator:
             Y = Y.reshape(-1, 1)
 
         # split into train and test
-        X_train, X_test, Y_train, Y_test = train_test_split(
-            X, Y, test_size=self.test_size
-        )
+        if self.test_size > 0:
+            X_train, X_test, Y_train, Y_test = train_test_split(
+                X, Y, test_size=self.test_size
+            )
+        else:
+            X_train, Y_train = X, Y
+            X_test, Y_test = None, None
 
         # save input, output dimensions, and parameter names
         self.idim = X_train.shape[1]
@@ -221,7 +225,8 @@ class Emulator:
             func, samples, precomputed=precomputed, collection=collection
         )
         self._train(X_train, Y_train)
-        self._test(X_test, Y_test)
+        if X_test is not None:
+            self._test(X_test, Y_test)
         emulated_func = self._build_func()
         return emulated_func
 
