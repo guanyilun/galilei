@@ -118,23 +118,23 @@ class JaxEmulator(Emulator):
             loss = jnp.mean(loss)
             return loss
 
-        loss_grad = jax.jit(jax.grad(compute_loss))
+        val_and_grad = jax.jit(jax.value_and_grad(compute_loss))
 
         @jax.jit
         def train_step(params, opt_state, X_train, Y_train):
             for X, Y in zip(X_train, Y_train):
-                grads = loss_grad(params, X, Y)
+                loss_val, grads = val_and_grad(params, X, Y)
                 updates, opt_state = self.optimizer.update(grads, opt_state)
                 params = optax.apply_updates(params, updates)
-            return params, opt_state
+            return params, opt_state, loss_val
 
         # training loop
         pbar = tqdm(range(self.epochs))
         for epoch in pbar:
-            params, opt_state = train_step(params, opt_state, X_train, Y_train)
-            # use one sample as a proxy for the whole epoch loss
-            running_loss = compute_loss(params, X_train[0], Y_train[0])
-            pbar.set_postfix({"loss": f"{running_loss:.5f}"})
+            params, opt_state, loss_val = train_step(
+                params, opt_state, X_train, Y_train
+            )
+            pbar.set_postfix({"loss": f"{loss_val:.5f}"})
         self.model = model
         self.params = params
 
